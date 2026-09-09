@@ -152,30 +152,55 @@ impl StreamingDiff {
         self.scores
             .resize(self.old.len() + 1, self.new.len() - self.new_text_ix + 1);
 
+        // Precomputed so that `powi` doesn't have to be called for every cell of the score
+        // matrix.
+        let mut equality_bonuses = [0.; Self::MAX_EQUALITY_EXPONENT as usize + 1];
+        for (exponent, bonus) in equality_bonuses.iter_mut().enumerate() {
+            *bonus = Self::EQUALITY_BASE.powi(exponent as i32);
+        }
+
         for j in self.new_text_ix + 1..=self.new.len() {
-            self.current_equal_runs.fill(0);
             let relative_j = j - self.new_text_ix;
             let new_char = self.new[j - 1];
-            let old = &self.old;
-            let previous_equal_runs = &self.previous_equal_runs;
-            let current_equal_runs = &mut self.current_equal_runs;
+            let old = &self.old[..];
             let (previous_scores, current_scores) = self.scores.adjacent_columns_mut(relative_j);
+            let old_len = old.len();
+            let previous_equal_runs = &self.previous_equal_runs[..old_len];
+            let current_equal_runs = &mut self.current_equal_runs[..old_len + 1];
+            let previous_scores = &previous_scores[..old_len + 1];
+            let current_scores = &mut current_scores[..old_len + 1];
 
             current_scores[0] = j as f64 * Self::INSERTION_SCORE;
-            for i in 1..=old.len() {
+            let mut left_score = current_scores[0];
+            for i in 1..old_len + 1 {
                 let insertion_score = previous_scores[i] + Self::INSERTION_SCORE;
-                let deletion_score = current_scores[i - 1] + Self::DELETION_SCORE;
-                let equality_score = if old[i - 1] == new_char {
+                let deletion_score = left_score + Self::DELETION_SCORE;
+                // None of these scores can be NaN, so a plain comparison is equivalent to
+                // `f64::max` while avoiding its NaN-handling branches.
+                let mut score = if deletion_score > insertion_score {
+                    deletion_score
+                } else {
+                    insertion_score
+                };
+
+                if old[i - 1] == new_char {
                     let equal_run = previous_equal_runs[i - 1] + 1;
                     current_equal_runs[i] = equal_run;
 
-                    let exponent = cmp::min(equal_run as i32 / 4, Self::MAX_EQUALITY_EXPONENT);
-                    previous_scores[i - 1] + Self::EQUALITY_BASE.powi(exponent)
+                    let exponent =
+                        cmp::min(equal_run as usize / 4, Self::MAX_EQUALITY_EXPONENT as usize);
+                    let equality_score = previous_scores[i - 1] + equality_bonuses[exponent];
+                    if equality_score > score {
+                        score = equality_score;
+                    }
                 } else {
-                    f64::NEG_INFINITY
-                };
+                    // Every entry of `current_equal_runs` in `1..=old.len()` is written on each
+                    // pass, which avoids having to zero the whole buffer for every new character.
+                    current_equal_runs[i] = 0;
+                }
 
-                current_scores[i] = insertion_score.max(deletion_score).max(equality_score);
+                current_scores[i] = score;
+                left_score = score;
             }
 
             std::mem::swap(&mut self.previous_equal_runs, &mut self.current_equal_runs);
