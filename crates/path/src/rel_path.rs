@@ -311,7 +311,27 @@ impl PartialOrd for RelPath {
 
 impl Ord for RelPath {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.components().cmp(other.components())
+        // Comparing paths component by component is equivalent to comparing their
+        // bytes, provided that the separator is ordered before every other byte.
+        // Since relative paths are normalized, they contain neither empty
+        // components nor trailing separators, so the two orderings always agree.
+        let this = self.0.as_bytes();
+        let other = other.0.as_bytes();
+        for (&this_byte, &other_byte) in this.iter().zip(other.iter()) {
+            if this_byte != other_byte {
+                return separator_first_key(this_byte).cmp(&separator_first_key(other_byte));
+            }
+        }
+        this.len().cmp(&other.len())
+    }
+}
+
+#[inline]
+fn separator_first_key(byte: u8) -> u16 {
+    if byte == SEPARATOR as u8 {
+        0
+    } else {
+        byte as u16 + 1
     }
 }
 
