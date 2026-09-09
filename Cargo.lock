@@ -2120,7 +2120,7 @@ dependencies = [
  "agent",
  "agent_settings",
  "assets",
- "criterion",
+ "codspeed-criterion-compat",
  "editor",
  "futures 0.3.32",
  "gpui",
@@ -3338,6 +3338,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "codspeed"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7083f253260bcb4aaa3b4aa4c52973703dabc1a85c2f193997e2689aafa8a919"
+dependencies = [
+ "anyhow",
+ "cc",
+ "colored",
+ "getrandom 0.4.1",
+ "glob",
+ "libc",
+ "nix 0.31.3",
+ "serde",
+ "serde_json",
+ "statrs",
+]
+
+[[package]]
+name = "codspeed-criterion-compat"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9f24251445188c69d50f10179d795424bd71b533b7e3f84fc03f26893b01af0"
+dependencies = [
+ "clap",
+ "codspeed",
+ "codspeed-criterion-compat-walltime",
+ "colored",
+ "regex",
+]
+
+[[package]]
+name = "codspeed-criterion-compat-walltime"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c38205d56e2cb4fe04b708de7f9653a3f1b89edbe3a20b28f21e9e525e9e061"
+dependencies = [
+ "anes",
+ "cast",
+ "ciborium",
+ "clap",
+ "codspeed",
+ "criterion-plot",
+ "is-terminal",
+ "itertools 0.10.5",
+ "num-traits",
+ "once_cell",
+ "oorandom",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
 name = "collab"
 version = "0.44.0"
 dependencies = [
@@ -3490,6 +3548,15 @@ name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
+
+[[package]]
+name = "colored"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
+dependencies = [
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "combine"
@@ -4337,32 +4404,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "gpui",
-]
-
-[[package]]
-name = "criterion"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
-dependencies = [
- "anes",
- "cast",
- "ciborium",
- "clap",
- "criterion-plot",
- "is-terminal",
- "itertools 0.10.5",
- "num-traits",
- "once_cell",
- "oorandom",
- "plotters",
- "rayon",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "tinytemplate",
- "walkdir",
 ]
 
 [[package]]
@@ -5346,11 +5387,11 @@ dependencies = [
  "cloud_api_client",
  "cloud_api_types",
  "cloud_llm_client",
+ "codspeed-criterion-compat",
  "collections",
  "copilot",
  "copilot_ui",
  "credentials_provider",
- "criterion",
  "ctor",
  "db",
  "edit_prediction_context",
@@ -6186,8 +6227,8 @@ dependencies = [
  "async-trait",
  "client",
  "cloud_api_types",
+ "codspeed-criterion-compat",
  "collections",
- "criterion",
  "ctor",
  "dap",
  "extension",
@@ -6932,7 +6973,7 @@ dependencies = [
 name = "fuzzy_nucleo"
 version = "0.1.0"
 dependencies = [
- "criterion",
+ "codspeed-criterion-compat",
  "fuzzy",
  "gpui",
  "gpui_util",
@@ -6974,8 +7015,8 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.1.3",
- "windows-result 0.3.4",
+ "windows-link 0.2.1",
+ "windows-result 0.4.1",
 ]
 
 [[package]]
@@ -7490,9 +7531,9 @@ dependencies = [
  "bindgen",
  "bitflags 2.13.1",
  "chrono",
+ "codspeed-criterion-compat",
  "collections",
  "core-video",
- "criterion",
  "ctor",
  "derive_more",
  "embed-resource",
@@ -7751,9 +7792,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "codspeed-criterion-compat",
  "collections",
  "cosmic-text",
- "criterion",
  "etagere",
  "gpui",
  "gpui_util",
@@ -8481,7 +8522,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.57.0",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
@@ -9484,8 +9525,8 @@ dependencies = [
  "async-trait",
  "chardetng",
  "clock",
+ "codspeed-criterion-compat",
  "collections",
- "criterion",
  "ctor",
  "diffy",
  "ec4rs",
@@ -11335,6 +11376,18 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.31.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
+dependencies = [
+ "bitflags 2.13.1",
+ "cfg-if",
+ "cfg_aliases 0.2.1",
+ "libc",
 ]
 
 [[package]]
@@ -13988,8 +14041,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
+ "codspeed-criterion-compat",
  "collections",
- "criterion",
  "editor",
  "file_icons",
  "fs",
@@ -15395,7 +15448,7 @@ dependencies = [
 name = "rope"
 version = "0.1.0"
 dependencies = [
- "criterion",
+ "codspeed-criterion-compat",
  "ctor",
  "gpui",
  "heapless",
@@ -17410,6 +17463,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "statrs"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a3fe7c28c6512e766b0874335db33c94ad7b8f9054228ae1c2abd47ce7d335e"
+dependencies = [
+ "approx",
+ "num-traits",
+]
+
+[[package]]
 name = "streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17419,7 +17482,7 @@ checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
 name = "streaming_diff"
 version = "0.1.0"
 dependencies = [
- "criterion",
+ "codspeed-criterion-compat",
  "ordered-float 5.5.0",
  "rand 0.9.4",
  "rope",
@@ -18278,6 +18341,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clock",
+ "codspeed-criterion-compat",
  "collections",
  "ctor",
  "gpui",
@@ -19078,7 +19142,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fb391ac70462b3097a755618fbf9c8f95ecc1eb379a414f7b46f202ed10db1f"
 dependencies = [
  "cc",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
