@@ -828,12 +828,13 @@ impl<T: Item> SumTree<T> {
                     *child_summaries.last_mut().unwrap() =
                         child_trees.last().unwrap().0.summary().clone();
 
-                    if let Some(split_tree) = tree_to_append {
-                        summaries_to_append
-                            .push(split_tree.0.summary().clone())
-                            .unwrap_oob();
-                        trees_to_append.push(split_tree).unwrap_oob();
-                    }
+                    let Some(split_tree) = tree_to_append else {
+                        return None;
+                    };
+                    summaries_to_append
+                        .push(split_tree.0.summary().clone())
+                        .unwrap_oob();
+                    trees_to_append.push(split_tree).unwrap_oob();
                 }
 
                 let child_count = child_trees.len() + trees_to_append.len();
@@ -878,39 +879,47 @@ impl<T: Item> SumTree<T> {
                 item_summaries,
             } => {
                 let other_node = other.0;
+                let other_items = other_node.items();
+                let other_summaries = other_node.child_summaries();
 
-                let child_count = items.len() + other_node.items().len();
+                let child_count = items.len() + other_items.len();
                 if child_count > 2 * TREE_BASE {
-                    let left_items;
-                    let right_items;
-                    let left_summaries;
-                    let right_summaries: ArrayVec<T::Summary, { 2 * TREE_BASE }, u8>;
-
                     let midpoint = (child_count + child_count % 2) / 2;
-                    {
-                        let mut all_items = items.iter().chain(other_node.items().iter()).cloned();
-                        left_items = all_items.by_ref().take(midpoint).collect();
-                        right_items = all_items.collect();
-
-                        let mut all_summaries = item_summaries
-                            .iter()
-                            .chain(other_node.child_summaries())
-                            .cloned();
-                        left_summaries = all_summaries.by_ref().take(midpoint).collect();
-                        right_summaries = all_summaries.collect();
-                    }
-                    *items = left_items;
-                    *item_summaries = left_summaries;
+                    let right = if midpoint <= items.len() {
+                        let right_summary = sum(
+                            item_summaries[midpoint..]
+                                .iter()
+                                .chain(other_summaries.iter()),
+                            cx,
+                        );
+                        SumTree(Arc::new(Node::Leaf {
+                            summary: right_summary,
+                            items: items
+                                .drain(midpoint..)
+                                .chain(other_items.iter().cloned())
+                                .collect(),
+                            item_summaries: item_summaries
+                                .drain(midpoint..)
+                                .chain(other_summaries.iter().cloned())
+                                .collect(),
+                        }))
+                    } else {
+                        let split = midpoint - items.len();
+                        let right = SumTree(Arc::new(Node::Leaf {
+                            summary: sum(other_summaries[split..].iter(), cx),
+                            items: other_items[split..].iter().cloned().collect(),
+                            item_summaries: other_summaries[split..].iter().cloned().collect(),
+                        }));
+                        items.extend(other_items[..split].iter().cloned());
+                        item_summaries.extend(other_summaries[..split].iter().cloned());
+                        right
+                    };
                     *summary = sum(item_summaries.iter(), cx);
-                    Some(SumTree(Arc::new(Node::Leaf {
-                        items: right_items,
-                        summary: sum(right_summaries.iter(), cx),
-                        item_summaries: right_summaries,
-                    })))
+                    Some(right)
                 } else {
                     <T::Summary as Summary>::add_summary(summary, other_node.summary(), cx);
-                    items.extend(other_node.items().iter().cloned());
-                    item_summaries.extend(other_node.child_summaries().iter().cloned());
+                    items.extend(other_items.iter().cloned());
+                    item_summaries.extend(other_summaries.iter().cloned());
                     None
                 }
             }
@@ -1061,13 +1070,9 @@ impl<T: Item> SumTree<T> {
             ) => {
                 let total_child_count = small_items.len() + items.len();
                 if total_child_count <= 2 * TREE_BASE {
-                    let mut all_items = small_items.clone();
-                    all_items.extend(items.drain(..));
-                    *items = all_items;
-
-                    let mut all_summaries = small_item_summaries.clone();
-                    all_summaries.extend(item_summaries.drain(..));
-                    *item_summaries = all_summaries;
+                    // `small` is underflowing, so only a handful of items are shifted over.
+                    prepend_in_place(items, small_items);
+                    prepend_in_place(item_summaries, small_item_summaries);
 
                     let mut full_summary = small_summary.clone();
                     Summary::add_summary(&mut full_summary, summary, cx);
@@ -1075,17 +1080,27 @@ impl<T: Item> SumTree<T> {
                     None
                 } else {
                     let midpoint = total_child_count.div_ceil(2);
-                    let mut all_items = small_items.iter().chain(items.iter()).cloned();
-                    let left_items = all_items.by_ref().take(midpoint).collect();
-                    *items = all_items.collect();
+                    let left_items: ArrayVec<T, { 2 * TREE_BASE }, u8>;
+                    let left_summaries: ArrayVec<T::Summary, { 2 * TREE_BASE }, u8>;
+                    if midpoint <= small_items.len() {
+                        left_items = small_items[..midpoint].iter().cloned().collect();
+                        left_summaries = small_item_summaries[..midpoint].iter().cloned().collect();
 
-                    let mut all_summaries = small_item_summaries
-                        .iter()
-                        .chain(item_summaries.iter())
-                        .cloned();
-                    let left_summaries: ArrayVec<_, { 2 * TREE_BASE }, u8> =
-                        all_summaries.by_ref().take(midpoint).collect();
-                    *item_summaries = all_summaries.collect();
+                        prepend_in_place(items, &small_items[midpoint..]);
+                        prepend_in_place(item_summaries, &small_item_summaries[midpoint..]);
+                    } else {
+                        let taken = midpoint - small_items.len();
+                        left_items = small_items
+                            .iter()
+                            .cloned()
+                            .chain(items.drain(..taken))
+                            .collect();
+                        left_summaries = small_item_summaries
+                            .iter()
+                            .cloned()
+                            .chain(item_summaries.drain(..taken))
+                            .collect();
+                    }
 
                     *summary = sum(item_summaries.iter(), cx);
                     Some(SumTree(Arc::new(Node::Leaf {
@@ -1375,6 +1390,14 @@ impl<T: KeyedItem> Edit<T> {
             Edit::Insert(item) => item.key(),
             Edit::Remove(key) => key.clone(),
         }
+    }
+}
+
+/// Inserts `prefix` at the front of `vec`, which is cheaper than rebuilding the
+/// whole fixed-size vector when only a few elements are prepended.
+fn prepend_in_place<T: Clone, const N: usize>(vec: &mut ArrayVec<T, N, u8>, prefix: &[T]) {
+    for (ix, item) in prefix.iter().enumerate() {
+        vec.insert(ix, item.clone()).unwrap_oob();
     }
 }
 
