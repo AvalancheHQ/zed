@@ -40,9 +40,9 @@ jobs:
         cache-target: release
         bins: cargo-codspeed
     - name: Build the benchmark targets
-      run: "cargo codspeed build --measurement-mode simulation --locked -p fuzzy_nucleo -p language -p rope -p streaming_diff -p text"
+      run: "cargo codspeed build --measurement-mode simulation --locked -p fuzzy_nucleo -p language -p rope -p streaming_diff"
     - name: Run the benchmarks
       uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
       with:
         mode: simulation
-        run: "cargo codspeed run -p fuzzy_nucleo -p language -p rope -p streaming_diff -p text"
+        run: "cargo codspeed run -p fuzzy_nucleo -p language -p rope -p streaming_diff"
