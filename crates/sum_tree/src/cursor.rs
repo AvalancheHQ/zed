@@ -462,12 +462,16 @@ where
     /// Returns whether we found the item you were seeking for.
     #[track_caller]
     #[instrument(skip_all)]
-    fn seek_internal(
+    fn seek_internal<Target, Aggregate>(
         &mut self,
-        target: &dyn SeekTarget<'a, T::Summary, D>,
+        target: &Target,
         bias: Bias,
-        aggregate: &mut dyn SeekAggregate<'a, T>,
-    ) -> bool {
+        aggregate: &mut Aggregate,
+    ) -> bool
+    where
+        Target: SeekTarget<'a, T::Summary, D> + ?Sized,
+        Aggregate: SeekAggregate<'a, T> + ?Sized,
+    {
         assert!(
             target.cmp(&self.position, self.cx).is_ge(),
             "cannot seek backward",
@@ -486,7 +490,10 @@ where
 
         let mut ascending = false;
         'outer: while let Some(entry) = self.stack.last_mut() {
-            match *entry.tree.0 {
+            // `tree` is borrowed from the tree itself, not from the stack entry, so the
+            // stack stays available while the node's children are scanned below.
+            let tree = entry.tree;
+            match *tree.0 {
                 Node::Internal {
                     ref child_summaries,
                     ref child_trees,
@@ -494,35 +501,50 @@ where
                 } => {
                     if ascending {
                         entry.index += 1;
-                        entry.position = self.position.clone();
                     }
 
-                    for (child_tree, child_summary) in child_trees[entry.index()..]
-                        .iter()
-                        .zip(&child_summaries[entry.index()..])
-                    {
-                        let mut child_end = self.position.clone();
+                    // Slicing the child trees to the same length as their summaries lets the
+                    // bounds checks in the scan below be elided.
+                    let child_summaries: &[T::Summary] = child_summaries;
+                    let child_trees = &child_trees[..child_summaries.len()];
+
+                    // Keeping the position and the index in locals avoids writing them back
+                    // to the cursor and to the stack entry for every skipped child.
+                    let mut position = self.position.clone();
+                    let mut index = entry.index();
+                    let mut child_to_descend_into = None;
+                    while index < child_summaries.len() {
+                        let child_summary = &child_summaries[index];
+                        let mut child_end = position.clone();
                         child_end.add_summary(child_summary, self.cx);
 
                         let comparison = target.cmp(&child_end, self.cx);
                         if comparison == Ordering::Greater
                             || (comparison == Ordering::Equal && bias == Bias::Right)
                         {
-                            self.position = child_end;
-                            aggregate.push_tree(child_tree, child_summary, self.cx);
-                            entry.index += 1;
-                            entry.position = self.position.clone();
+                            position = child_end;
+                            aggregate.push_tree(&child_trees[index], child_summary, self.cx);
+                            index += 1;
                         } else {
-                            self.stack
-                                .push(StackEntry {
-                                    tree: child_tree,
-                                    index: 0,
-                                    position: self.position.clone(),
-                                })
-                                .unwrap_oob();
-                            ascending = false;
-                            continue 'outer;
+                            child_to_descend_into = Some(&child_trees[index]);
+                            break;
                         }
+                    }
+
+                    self.position = position;
+                    entry.index = index as u32;
+                    entry.position = self.position.clone();
+
+                    if let Some(child_tree) = child_to_descend_into {
+                        self.stack
+                            .push(StackEntry {
+                                tree: child_tree,
+                                index: 0,
+                                position: self.position.clone(),
+                            })
+                            .unwrap_oob();
+                        ascending = false;
+                        continue 'outer;
                     }
                 }
                 Node::Leaf {
@@ -532,27 +554,37 @@ where
                 } => {
                     aggregate.begin_leaf();
 
-                    for (item, item_summary) in items[entry.index()..]
-                        .iter()
-                        .zip(&item_summaries[entry.index()..])
-                    {
-                        let mut child_end = self.position.clone();
+                    let item_summaries: &[T::Summary] = item_summaries;
+                    let items = &items[..item_summaries.len()];
+
+                    let mut position = self.position.clone();
+                    let mut index = entry.index();
+                    let mut found_item = false;
+                    while index < item_summaries.len() {
+                        let item_summary = &item_summaries[index];
+                        let mut child_end = position.clone();
                         child_end.add_summary(item_summary, self.cx);
 
                         let comparison = target.cmp(&child_end, self.cx);
                         if comparison == Ordering::Greater
                             || (comparison == Ordering::Equal && bias == Bias::Right)
                         {
-                            self.position = child_end;
-                            aggregate.push_item(item, item_summary, self.cx);
-                            entry.index += 1;
+                            position = child_end;
+                            aggregate.push_item(&items[index], item_summary, self.cx);
+                            index += 1;
                         } else {
-                            aggregate.end_leaf(self.cx);
-                            break 'outer;
+                            found_item = true;
+                            break;
                         }
                     }
 
+                    self.position = position;
+                    entry.index = index as u32;
                     aggregate.end_leaf(self.cx);
+
+                    if found_item {
+                        break 'outer;
+                    }
                 }
             }
 
